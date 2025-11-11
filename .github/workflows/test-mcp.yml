@@ -1,0 +1,68 @@
+name: Test PostgreSQL MCP Server
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-mcp:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: mcpuser
+          POSTGRES_PASSWORD: mcppassword
+          POSTGRES_DB: mcp_demo
+        options: >-
+          --health-cmd="pg_isready -U mcpuser"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgres://mcpuser:mcppassword@localhost:5432/mcp_demo
+      ALLOW_ARBITRARY_SQL: true
+      PORT: 8000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL..."
+          until pg_isready -h localhost -U mcpuser; do
+            sleep 2
+          done
+
+      - name: Create test table
+        run: |
+          PGPASSWORD=mcppassword psql -h localhost -U mcpuser -d mcp_demo -c \
+          "CREATE TABLE customers (id serial PRIMARY KEY, name text, revenue int);
+           INSERT INTO customers (name, revenue) VALUES ('Alice', 1000), ('Bob', 2000);"
+
+      - name: Start MCP server in background
+        run: |
+          node index.js &
+          sleep 5
+
+      - name: Test MCP server endpoints
+        run: |
+          echo "Testing health endpoint"
+          curl -f http://localhost:8000/
+          echo "Testing list_tables endpoint"
+          curl -f http://localhost:8000/list_tables

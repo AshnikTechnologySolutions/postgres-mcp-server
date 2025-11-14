@@ -74,44 +74,132 @@ cd postgres-mcp-server
 
 ---
 
-## 📂 Repository Structure
+# 🏗️ Installation Guide (PostgreSQL + MCP Server + AI Chatbot)
+
+This setup supports both **local** and **3-VM distributed deployments**.
+
+---
+
+## 🖥️ 1. Install PostgreSQL (Database Server)
+
+Ubuntu / Debian:
+```
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+```
+
+CentOS / RHEL:
+```
+sudo yum install postgresql-server postgresql-contrib
+sudo postgresql-setup initdb
+```
+
+Create user + database:
+```
+sudo -u postgres psql
+CREATE ROLE mcpuser WITH LOGIN PASSWORD 'mcppassword';
+CREATE DATABASE mcp_demo OWNER mcpuser;
+GRANT ALL PRIVILEGES ON DATABASE mcp_demo TO mcpuser;
+\q
+```
+
+Optional: Allow remote MCP server:
+```
+host  mcp_demo  mcpuser  <MCP_SERVER_IP>/32  md5
+```
+
+Restart PostgreSQL:
+```
+sudo systemctl restart postgresql
+```
+
+---
+
+## 🖥️ 2. Install MCP Server (Node.js + Express)
+
+Install Node.js:
+```
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs git
+```
+
+Clone & install:
+```
+git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server.git
+cd postgres-mcp-server
+npm install
+```
+
+Create `.env`:
+```
+cp .env.example .env
+```
+
+Add:
+```
+DATABASE_URL=postgres://mcpuser:mcppassword@<POSTGRES_IP>:5432/mcp_demo
+PORT=8000
+```
+
+Start server:
+```
+node app.js
+```
+
+---
+
+## 🖥️ 3. Install AI Chatbot Client
 
 ```
-postgres-mcp-server/
-├── app.js                         # Main MCP Server (Express)
-├── index.js                       # Legacy entry (may be unused)
-├── config/
-│   └── db.js                      # PostgreSQL pool
-├── controllers/                   # Server controllers
-│   ├── healthController.js
-│   ├── queryController.js
-│   ├── schemaController.js
-│   ├── explainController.js
-│   └── statsController.js
-├── routes/                        # API routes
-│   ├── health.js
-│   ├── query.js
-│   ├── schema.js
-│   ├── explain.js
-│   └── stats.js
-├── examples/
-│   └── chatbot-client/            # AI Chatbot
-│       ├── index_dynamic.js
-│       ├── index.js
-│       ├── single-query.js
-│       ├── chat_history.json
-│       ├── package.json
-│       └── package-lock.json
-├── utility/                       # Data generation & tools
-│   ├── generate_20gb.py
-│   ├── create_partitions.py
-│   ├── import_all.sh
-│   └── schema_20gb.sql
-├── assets/
-│   └── architecture.png
-├── README.md
-├── package.json
-└── package-lock.json
+cd examples/chatbot-client
+npm install
+```
+
+Create `.env`:
+```
+OPENAI_API_KEY=your-api-key-here
+MCP_SERVER_URL=http://<MCP_SERVER_IP>:8000
+```
+
+Run chatbot:
+```
+node index_dynamic.js
+```
+
+---
+
+## 🌐 4. Distributed Deployment (3 VMs)
+
+| Component | VM | Purpose |
+|----------|----|----------|
+| PostgreSQL | VM-3 | Stores data |
+| MCP Server | VM-2 | API bridge |
+| AI Chatbot | VM-1 | NL → SQL |
+
+Firewall rules:
+
+PostgreSQL:
+```
+sudo ufw allow from <VM2_IP> to any port 5432
+```
+
+MCP Server:
+```
+sudo ufw allow from <VM1_IP> to any port 8000
+```
+
+---
+
+## ✔ Validation
+
+Test MCP → PostgreSQL:
+```
+psql -h <POSTGRES_IP> -U mcpuser -d mcp_demo -c "SELECT 1"
+```
+
+Test Chatbot → MCP:
+```
+curl http://<MCP_IP>:8000/
 ```
 
 ---

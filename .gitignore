@@ -17,7 +17,11 @@ mcp_data/
 *.csv
 *.parquet
 *.json
+
+# Backup files
 *_bkp
+*_bkp.*
+*.bkp
 
 # Logs
 *.log

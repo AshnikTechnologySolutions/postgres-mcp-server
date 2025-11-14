@@ -14,8 +14,12 @@ It is designed for:
 ---
 
 ## 📥 Clone the Repository
+```bash
 git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server.git
+```
+```bash
 cd postgres-mcp-server
+```
 
 ---
 

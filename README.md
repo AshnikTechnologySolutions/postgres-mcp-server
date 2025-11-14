@@ -1,84 +1,124 @@
 # 🚀 AI-Enhanced PostgreSQL MCP Server
 ![Architecture](./assets/architecture.png)
 
-This repository provides a complete **Model Context Protocol (MCP) Server for PostgreSQL**, an **AI-powered SQL Chatbot**, and tools to generate and load a **20GB+ e-commerce dataset** for analytics and natural-language-to-SQL workloads.
+This repository provides a complete **Model Context Protocol (MCP) Server for PostgreSQL**, an **AI-powered SQL Chatbot**, upgraded **health monitoring**, and tools to generate and load a **20GB+ e-commerce dataset**.
 
 It is designed for:
-- AI-driven SQL query generation
-- Large-scale dataset testing (20GB+)
-- Benchmarking PostgreSQL performance
-- Demonstrating MCP integration with LLMs
-- Real-world e-commerce analytics scenarios
+- AI-driven SQL query generation  
+- Large-scale dataset testing (20GB+)  
+- Benchmarking PostgreSQL performance  
+- Demonstrating MCP integration with LLMs  
+- Real-world e-commerce analytics  
+- Intelligent DB insights (uptime, stats, explain plans, safe queries)
 
 ---
 
 ## 📌 Features
 
-### 🧠 AI Chatbot for PostgreSQL
-- Understands natural-language questions
-- Generates SQL dynamically using **OpenAI GPT models**
-- Loads schema dynamically from MCP Server
-- Supports complex analytical queries
-- Human-readable table output
+### 🧠 AI Chatbot for PostgreSQL (Dynamic & Intelligent)
+- Understands natural-language questions  
+- Uses **OpenAI GPT (Responses API)**  
+- Auto-loads schema dynamically from MCP Server  
+- Built-in **Intent Router**:
+  - `uptime`
+  - `health`
+  - `table stats`
+  - `slow queries`
+  - `explain`
+  - `safe query`
+  - SQL generation (default)
+- Auto schema refresh (every 5 minutes)
+- Command history  
+- Pretty table output  
 
-### 🗄 PostgreSQL MCP Server
-- Implements REST-like MCP interface
-- `/list_tables`, `/get_schema`, `/sql_query`
-- Connects securely via environment variables
-- Works with any PostgreSQL cluster
+### 🗄 PostgreSQL MCP Server  
+- REST-like MCP interface  
+- Endpoints:
+  - `GET /` → Enhanced health (uptime, version, connections)  
+  - `GET /list_tables`  
+  - `GET /get_schema`  
+  - `POST /sql_query`  
+  - `POST /sql_safe_query`  
+  - `POST /explain_query`  
+  - `GET /stats/table_stats`  
+  - `GET /stats/slow_queries`  
+- Secure via environment variables  
+- Works with any PostgreSQL cluster  
 
-### 📦 Massive 20GB+ Synthetic Dataset
-- E-commerce schema:
-  - customers, orders, order_items
-  - products, categories, payments, shipments
-  - inventory
-- Partitioned monthly tables for orders & items
-- High-volume COPY-based ingestion
-- Perfect for benchmarking and AI demos
+### 📦 20GB+ Synthetic E-Commerce Dataset  
+- Tables:
+  - customers, orders, order_items  
+  - products, categories  
+  - payments, shipments  
+  - inventory  
+- Monthly partitioned tables  
+- COPY-based high-speed ingestion  
+- Ideal for AI + analytics  
 
-### 🛠 Tools Included
-- `generate_20gb.py` → generate CSV dataset (20GB+)
-- `create_partitions.py` → auto-create monthly partitions
-- `import_all.sh` → bulk import + ANALYZE
-- `schema_20gb.sql` → production-grade e-commerce schema
-- `README_DATA_LOAD.md` → full end-to-end data guide
+### 🛠 Included Tools  
+- `generate_20gb.py` → dataset generator  
+- `create_partitions.py` → creates monthly partitions  
+- `import_all.sh` → bulk loader  
+- `schema_20gb.sql` → complete schema  
+- `README_DATA_LOAD.md` → full data loading guide  
 
 ---
 
 ## 📂 Repository Structure
+
 ```
 postgres-mcp-server/
-├── index.js                     # MCP Server
-├── package.json
-├── tools/
-│   ├── schema_20gb.sql         # E-commerce schema
-│   ├── create_partitions.py    # Monthly partitions
-│   ├── generate_20gb.py        # 20GB data generator
-│   ├── import_all.sh           # Bulk import script
-│   └── README_DATA_LOAD.md     # Data loading guide
+├── app.js                         # Main MCP Server (Express)
+├── index.js                       # Legacy entry (may be unused)
+├── config/
+│   └── db.js                      # PostgreSQL pool
+├── controllers/                   # Server controllers
+│   ├── healthController.js
+│   ├── queryController.js
+│   ├── schemaController.js
+│   ├── explainController.js
+│   └── statsController.js
+├── routes/                        # API routes
+│   ├── health.js
+│   ├── query.js
+│   ├── schema.js
+│   ├── explain.js
+│   └── stats.js
 ├── examples/
-│   └── chatbot-client/
-│       ├── index_dynamic.js    # AI chatbot (dynamic schema)
+│   └── chatbot-client/            # AI Chatbot
+│       ├── index_dynamic.js
+│       ├── index.js
 │       ├── single-query.js
+│       ├── chat_history.json
 │       ├── package.json
-└── README.md
+│       └── package-lock.json
+├── utility/                       # Data generation & tools
+│   ├── generate_20gb.py
+│   ├── create_partitions.py
+│   ├── import_all.sh
+│   └── schema_20gb.sql
+├── assets/
+│   └── architecture.png
+├── README.md
+├── package.json
+└── package-lock.json
 ```
 
 ---
 
 ## ⚙️ Installation & Setup
 
-### 1️⃣ Install Dependencies
+### 1️⃣ Install dependencies
 ```bash
 npm install
 ```
 
-### Configure PostgreSQL connection:
+### 2️⃣ Configure PostgreSQL connection
 ```bash
 export DATABASE_URL=postgres://user:password@localhost:5432/mcp_demo
 ```
 
-### Start MCP Server:
+### 3️⃣ Start MCP Server
 ```bash
 npm start
 ```
@@ -89,9 +129,8 @@ You should see:
 
 ---
 
-## 💬 Run the AI Chatbot
+## 💬 Start the AI Chatbot
 
-Navigate to chatbot directory:
 ```bash
 cd examples/chatbot-client
 npm install
@@ -104,44 +143,56 @@ Output:
 ✔ Schema loaded dynamically!
 ```
 
-Ask questions like:
+Ask anything:
+
 ```
 Top 10 products by revenue
 Monthly revenue trend
-Which carrier delivered the most orders?
-Revenue by country
+Show table stats
+Explain select * from customers
+How long has my DB been running?
+Is my DB running?
+Slow queries
+safe: select * from products
+```
+
+---
+
+## 🩺 Enhanced Health Endpoint
+
+```json
+{
+  "ok": true,
+  "service": "PostgreSQL MCP Server",
+  "status": "running",
+  "uptime": "12 days 4 hours 31 minutes",
+  "started_at": "2025-01-20 12:11:03",
+  "postgres_version": "PostgreSQL 15.6 ...",
+  "database": "mcp_demo",
+  "active_connections": 18
+}
 ```
 
 ---
 
 ## 📦 Generate the 20GB Dataset
 
-Full guide located at:
-```
-tools/README_DATA_LOAD.md
-```
+Full guide:  
+`utility/README_DATA_LOAD.md`
 
-Quick start:
-```bash
-pip3 install faker python-dateutil
-python3 tools/generate_20gb.py --out /tmp/mcp_data
-```
+Quick steps:
 
-Create partitions:
 ```bash
-python3 tools/create_partitions.py
-```
-
-Import all data:
-```bash
-bash tools/import_all.sh /tmp/mcp_data
+python3 utility/generate_20gb.py --out /tmp/mcp_data
+python3 utility/create_partitions.py
+bash utility/import_all.sh /tmp/mcp_data
 ```
 
 ---
 
 ## 🎯 Example AI-Generated Queries
 
-### Top 10 customers by spending
+### Top spenders
 ```sql
 SELECT c.name, SUM(o.total_amount) AS total_spending
 FROM customers c
@@ -160,7 +211,7 @@ GROUP BY month
 ORDER BY month;
 ```
 
-### Most used shipping carrier
+### Popular shipping carriers
 ```sql
 SELECT carrier, COUNT(*)
 FROM shipments
@@ -171,6 +222,7 @@ ORDER BY COUNT(*) DESC;
 ---
 
 ## 🛡 Recommended .gitignore
+
 ```
 node_modules/
 .env
@@ -185,15 +237,17 @@ __pycache__/
 ---
 
 ## 🤝 Contributing
-PRs are welcome! Suggested areas:
-- Better dataset generators
-- Benchmark & load-testing scripts
-- UI dashboards
-- More MCP integrations
+
+PRs welcome! Areas to contribute:
+- More dataset generators  
+- Dashboards / UI  
+- New MCP tools  
+- Query performance helpers  
 
 ---
 
 ## ⭐ Support
-For issues or feature requests, please open a GitHub issue.
 
-🚀 Happy hacking with PostgreSQL + MCP + AI!
+For issues or feature requests, open a GitHub issue.
+
+🚀 Happy hacking with **PostgreSQL + MCP + AI**!

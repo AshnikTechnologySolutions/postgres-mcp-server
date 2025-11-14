@@ -11,15 +11,7 @@ It is designed for:
 - Real-world e-commerce analytics  
 - Intelligent DB insights (uptime, stats, explain plans, safe queries)
 
----
 
-## 📥 Clone the Repository
-```bash
-git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server.git
-```
-```bash
-cd postgres-mcp-server
-```
 
 ---
 
@@ -143,7 +135,7 @@ PORT=8000
 
 Start server:
 ```
-node app.js
+npm start
 ```
 
 ---
@@ -202,46 +194,7 @@ Test Chatbot → MCP:
 curl http://<MCP_IP>:8000/
 ```
 
----
 
-## ⚙️ Installation & Setup
-
-### 1️⃣ Install dependencies
-```bash
-npm install
-```
-
-### 2️⃣ Configure PostgreSQL connection
-```bash
-export DATABASE_URL=postgres://user:password@localhost:5432/mcp_demo
-```
-
-### 3️⃣ Start MCP Server
-```bash
-npm start
-```
-You should see:
-```
-🚀 MCP Server for PostgreSQL running on port 8000
-```
-
----
-
-## 💬 Start the AI Chatbot
-
-```bash
-cd examples/chatbot-client
-npm install
-node index_dynamic.js
-```
-
-Output:
-```
-🔄 Loading schema from MCP server...
-✔ Schema loaded dynamically!
-```
-
-Ask anything:
 
 ```
 Top 10 products by revenue

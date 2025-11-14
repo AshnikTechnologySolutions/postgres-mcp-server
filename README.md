@@ -162,6 +162,13 @@ Run chatbot:
 ```
 node index_dynamic.js
 ```
+Expected output:
+```
+🔄 Loading schema from MCP server...
+✔ Schema loaded dynamically!
+
+🧩 Ask your DB >
+```
 
 ---
 

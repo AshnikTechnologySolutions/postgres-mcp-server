@@ -138,6 +138,11 @@ Start server:
 npm start
 ```
 
+You should see:
+```
+🚀 MCP Server for PostgreSQL running on port 8000
+```
+
 ---
 
 ## 🖥️ 3. Install AI Chatbot Client
@@ -195,6 +200,7 @@ curl http://<MCP_IP>:8000/
 ```
 
 
+## 💬 Ask Questions Using the Chatbot
 
 ```
 Top 10 products by revenue

@@ -1,4 +1,5 @@
 # 🚀 AI-Enhanced PostgreSQL MCP Server
+![Architecture](./assets/architecture.png)
 
 This repository provides a complete **Model Context Protocol (MCP) Server for PostgreSQL**, an **AI-powered SQL Chatbot**, and tools to generate and load a **20GB+ e-commerce dataset** for analytics and natural-language-to-SQL workloads.
 

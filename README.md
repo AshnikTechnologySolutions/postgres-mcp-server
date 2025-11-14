@@ -13,6 +13,12 @@ It is designed for:
 
 ---
 
+## 📥 Clone the Repository
+git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server.git
+cd postgres-mcp-server
+
+---
+
 ## 📌 Features
 
 ### 🧠 AI Chatbot for PostgreSQL (Dynamic & Intelligent)

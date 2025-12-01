@@ -1,33 +1,28 @@
-# Node
-node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-
-# Python
+#Python
+venv/
 __pycache__/
 *.pyc
-
-# Environment
+# Environment / secrets
 .env
-.env.local
-
-# Data files
-mcp_data/
-*.csv
-*.parquet
-*.json
-
-# Backup files
-*_bkp
-*_bkp.*
-*.bkp
+.env.*
 
 # Logs
 *.log
 
-# macOS
+# Data
+*.csv
+mcp_data/
+*.parquet
+
+# OS files
 .DS_Store
 
-# Chatbot temp files
-examples/chatbot-client/chat_history.json
+# Temp
+*.tmp
+*.bak
+*.bkp
+*_bkp
+README.md_bkp
+
+# Chat history
+test_client_output.json

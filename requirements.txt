@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+asyncpg
+psycopg[binary]
+python-dotenv
+mcp

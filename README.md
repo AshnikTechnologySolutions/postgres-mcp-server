@@ -37,7 +37,7 @@ This repository turns your PostgreSQL (and other data sources) into a **conversa
 - Tool routing (intent detection)  
 - Timing logs: MCP time, query time, RTT  
 
-## 🛠️ 2. MCP Tools (Python)
+## 🛠️ 2. PostgreSQL MCP Tools
 The MCP server exposes the following tools:
 
 | Tool Name | Description |
@@ -60,10 +60,10 @@ Extendable (plug-in architecture) to:
 - REST APIs using `httpx`
 - Filesystem tools using Python I/O
 
-## 🧬 4. Pure-Python Server (FastMCP)
-- No Node.js  
-- No Express  
-- Extremely reliable MCP engine  
+## 🧬 4. Pure-Python Server (FastMCP)  
+- Extremely reliable MCP engine 
+- MCP server runs over STDIO 
+- Production-safe event loop
 - First-class Claude Desktop compatibility  
 
 ## 🔒 5. Security
@@ -80,42 +80,52 @@ Extendable (plug-in architecture) to:
 
 ```
 postgres-mcp-server/
-├── cli.py                 # Starts MCP server (stdio transport)
-├── requirements.txt       # Python dependencies
+├── cli.py
+├── .env.example       
+├── test_client.py
+├── requirements.txt
 ├── mcp_server/
-│   ├── server.py          # FastMCP tool definitions
-│   ├── config.py          # Loads DATABASE_URL
-│   ├── db.py              # PostgreSQL async connection helper
-│   ├── router.py          # (optional) tool registry
-│   ├── tools/             # Tool implementations
-│   │   ├── query.py
-│   │   ├── safe_query.py
-│   │   ├── schema.py
-│   │   ├── stats.py
-│   │   ├── explain.py
-│   │   ├── uptime.py
-│   │   └── health.py
-└── test_client.py
+│   ├── server.py
+│   ├── config.py
+│   ├── db.py
+│   ├── router.py
+│   └── tools/
+│       ├── query.py
+│       ├── safe_query.py
+│       ├── schema.py
+│       ├── stats.py
+│       ├── explain.py
+│       ├── uptime.py
+│       ├── health.py
+└── assets/
+    └── architecture.png
 ```
 
 ---
 
 # 🏗️ Installation
 
-## 1️⃣ Create Virtual Environment
+## 1️⃣ Clone the repository
+
+```bash
+git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server
+cd postgres-mcp-server
+```
+
+## 2️⃣ Create Virtual Environment
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-## 2️⃣ Install Requirements
+## 3️⃣ Install Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 3️⃣ Configure Database URL
+## 4️⃣ Configure Database URL
 
 **Option A: export variable**
 
@@ -137,7 +147,7 @@ DATABASE_URL=postgresql://mcpuser:mcppassword@localhost:5432/mcp_demo
 python3 cli.py
 ```
 
-You should see:
+You should see the FastMCP banner:
 
 ```
 FastMCP 2.x

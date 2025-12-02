@@ -1,215 +1,187 @@
 #!/usr/bin/env python3
 """
-Robust subprocess-based MCP JSON-RPC test client.
-
-Works without depending on FastMCP's client transports API (avoids import issues).
-Starts your CLI MCP server (cli.py) in a subprocess, sends JSON-RPC lines and
-waits for matching responses by id.
-
-Usage:
-    python3 test_client.py
+Fully working RAW MCP client for FastMCP 2.x
+Correctly uses tools/call wrapper
 """
 
 import subprocess
 import json
 import uuid
-import time
 import threading
 import queue
 import sys
-from typing import Optional
+import time
 
-SERVER_CMD = ["python3", "cli.py"]  # adjust if you run differently
-SERVER_CWD = "."                     # repo root where cli.py lives
-READ_TIMEOUT = 10                    # seconds to wait for a response
+# ─────────────────────────────
+# Start server process
+# ─────────────────────────────
+proc = subprocess.Popen(
+    ["python3", "cli.py"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    bufsize=1,
+)
 
+print("🔌 MCP Raw Test Client Started\n")
 
-# Threaded stdout reader: pushes JSON messages into a queue
-def _reader_thread(proc, out_q: queue.Queue, err_q: queue.Queue):
-    while True:
-        line = proc.stdout.readline()
-        if line == "" and proc.poll() is not None:
-            break
-        if not line:
-            time.sleep(0.01)
-            continue
-        line = line.strip()
-        if not line:
-            continue
+out_q = queue.Queue()
+err_q = queue.Queue()
 
-        # Try to parse JSON; if that fails, push raw to err queue
+def reader_thread(stream, q):
+    for line in iter(stream.readline, ""):
+        if line:
+            q.put(line)
+    stream.close()
+
+threading.Thread(target=reader_thread, args=(proc.stdout, out_q), daemon=True).start()
+threading.Thread(target=reader_thread, args=(proc.stderr, err_q), daemon=True).start()
+
+# ─────────────────────────────
+# Low-level helpers
+# ─────────────────────────────
+
+def send_json(msg):
+    raw = json.dumps(msg)
+    proc.stdin.write(raw + "\n")
+    proc.stdin.flush()
+
+def wait_for_response(req_id, timeout=3):
+    start = time.time()
+    while time.time() - start < timeout:
+        # stderr logs
         try:
-            data = json.loads(line)
-            out_q.put(data)
-        except Exception:
-            # Keep stderr-like outputs separate for debugging
-            err_q.put(line)
+            while True:
+                e = err_q.get_nowait().strip()
+                if e:
+                    print(f"⚠️  [server stderr] {e}")
+        except queue.Empty:
+            pass
 
-    # drain remaining stderr if any
-    for l in proc.stderr:
-        err_q.put(l.strip())
-
-
-class MCPTestClient:
-    def __init__(self, cmd=SERVER_CMD, cwd=SERVER_CWD):
-        self.cmd = cmd
-        self.cwd = cwd
-        self.proc: Optional[subprocess.Popen] = None
-        self._out_q = queue.Queue()
-        self._err_q = queue.Queue()
-        self._responses = {}  # id -> response
-        self._lock = threading.Lock()
-        self._reader = None
-
-    def start_server(self):
-        # Start MCP server subprocess
-        self.proc = subprocess.Popen(
-            self.cmd,
-            cwd=self.cwd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
-        )
-
-        # Start reader thread
-        self._reader = threading.Thread(target=_reader_thread, args=(self.proc, self._out_q, self._err_q), daemon=True)
-        self._reader.start()
-
-        # Background thread to dispatch responses to self._responses
-        threading.Thread(target=self._dispatch_loop, daemon=True).start()
-
-    def _dispatch_loop(self):
-        while True:
-            try:
-                msg = self._out_q.get(timeout=0.1)
-            except queue.Empty:
-                if self.proc and self.proc.poll() is not None:
-                    break
-                continue
-
-            # If it's a JSON-RPC response with id, store it
-            if isinstance(msg, dict) and "id" in msg:
-                with self._lock:
-                    self._responses[msg["id"]] = msg
-            else:
-                # put non-RPC messages into err queue for debugging
-                self._err_q.put(json.dumps(msg))
-
-    def stop(self):
-        if self.proc:
-            try:
-                self.proc.terminate()
-            except Exception:
-                pass
-            self.proc = None
-
-    def send_jsonrpc(self, method: str, params: Optional[dict] = None, timeout=READ_TIMEOUT):
-        if self.proc is None or self.proc.stdin is None:
-            raise RuntimeError("Server process is not running")
-
-        req_id = str(uuid.uuid4())
-        payload = {"jsonrpc": "2.0", "id": req_id, "method": method}
-        # IMPORTANT: FastMCP expects `params` for tools even when empty `{}`.
-        payload["params"] = params if params is not None else {}
-
-        # write line
-        raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-        self.proc.stdin.write(raw + "\n")
-        self.proc.stdin.flush()
-
-        # wait for response with the same id
-        start = time.time()
-        while True:
-            with self._lock:
-                if req_id in self._responses:
-                    return self._responses.pop(req_id)
-
-            # show any helpful stderr lines from server for debugging
-            try:
-                err_line = self._err_q.get_nowait()
-                print("SERVER:", err_line, file=sys.stderr)
-            except queue.Empty:
-                pass
-
-            if time.time() - start > timeout:
-                raise TimeoutError(f"No response within {timeout}s for id {req_id}")
-
+        # stdout messages
+        try:
+            line = out_q.get_nowait().strip()
+        except queue.Empty:
             time.sleep(0.05)
+            continue
+
+        if not line:
+            continue
+        
+        try:
+            msg = json.loads(line)
+        except:
+            print(f"🔸 Non-JSON output: {line}")
+            continue
+
+        if msg.get("id") == req_id:
+            return msg
+
+    return None
+
+# ─────────────────────────────
+# 1) Send initialize
+# ─────────────────────────────
+init_id = str(uuid.uuid4())
+send_json({
+    "jsonrpc": "2.0",
+    "id": init_id,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "local-test-client", "version": "1.0"}
+    }
+})
+
+print("🔄 Sending initialize handshake...")
+resp = wait_for_response(init_id)
+print("\n🟢 Initialization Response:")
+print(json.dumps(resp, indent=2), "\n")
 
 
-def interactive_loop(client: MCPTestClient):
-    banner = """
-🔌 MCP Local Test Client
-Available commands:
-  health        -> basic health (send empty params {})
-  uptime        -> uptime (send empty params {})
-  schema        -> get_schema (send empty params {})
-  sql           -> sql_query (asks for SQL, sends {"query": "..."})
-  safe          -> sql_safe (asks for SQL, sends {"query": "..."})
-  explain       -> explain_query (asks for SQL, sends {"query": "...", "analyze": false})
-  table_stats   -> table_stats (optional {"limit": N})
-  slow_queries  -> slow_queries (optional {"limit": N})
-  exit
-"""
-    print(banner)
+# ─────────────────────────────
+# MCP tools/call wrapper
+# ─────────────────────────────
 
-    try:
-        while True:
-            cmd = input("mcp> ").strip().lower()
-            if not cmd:
-                continue
-            if cmd == "exit":
-                break
+def call_tool(tool_name, arguments=None):
+    req_id = str(uuid.uuid4())
+    msg = {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": arguments or {}
+        }
+    }
 
-            try:
-                if cmd == "health":
-                    resp = client.send_jsonrpc("health", {})
-                elif cmd == "uptime":
-                    resp = client.send_jsonrpc("uptime", {})
-                elif cmd == "schema":
-                    resp = client.send_jsonrpc("get_schema", {})
-                elif cmd == "sql":
-                    q = input("Enter SQL> ").strip()
-                    resp = client.send_jsonrpc("sql_query", {"query": q})
-                elif cmd == "safe":
-                    q = input("Enter SAFE SQL> ").strip()
-                    resp = client.send_jsonrpc("sql_safe", {"query": q})
-                elif cmd == "explain":
-                    q = input("Enter SQL> ").strip()
-                    analyze = input("Analyze? (y/N)> ").strip().lower() == "y"
-                    resp = client.send_jsonrpc("explain_query", {"query": q, "analyze": analyze})
-                elif cmd == "table_stats":
-                    lim = input("Limit (enter for default)> ").strip()
-                    params = {"limit": int(lim)} if lim else {}
-                    resp = client.send_jsonrpc("table_stats", params)
-                elif cmd == "slow_queries":
-                    lim = input("Limit (enter for default)> ").strip()
-                    params = {"limit": int(lim)} if lim else {}
-                    resp = client.send_jsonrpc("slow_queries", params)
-                else:
-                    print("Unknown command")
-                    continue
-
-                print("\n🔹 Response:")
-                print(json.dumps(resp, indent=2, ensure_ascii=False))
-                print("\n")
-            except TimeoutError as te:
-                print("❌ Timeout:", te)
-            except Exception as e:
-                print("❌ Error:", e)
-
-    finally:
-        client.stop()
+    send_json(msg)
+    return req_id
 
 
-if __name__ == "__main__":
-    c = MCPTestClient()
-    c.start_server()
+# ─────────────────────────────
+# REPL
+# ─────────────────────────────
+print("Available commands:")
+print("  health")
+print("  uptime")
+print("  schema")
+print("  sql")
+print("  safe")
+print("  explain")
+print("  table_stats")
+print("  slow_queries")
+print("  exit\n")
 
-    # give the server a second to startup and emit any logs
-    time.sleep(0.8)
+try:
+    while True:
+        cmd = input("mcp> ").strip().lower()
 
-    interactive_loop(c)
+        if cmd == "exit":
+            print("👋 Exiting...")
+            proc.terminate()
+            sys.exit(0)
+
+        if cmd == "health":
+            rid = call_tool("health")
+
+        elif cmd == "uptime":
+            rid = call_tool("uptime")
+
+        elif cmd == "schema":
+            rid = call_tool("schema")
+
+        elif cmd == "table_stats":
+            rid = call_tool("table_stats", {"limit": 10})
+
+        elif cmd == "slow_queries":
+            rid = call_tool("slow_queries", {"limit": 5})
+
+        elif cmd == "sql":
+            q = input("SQL> ")
+            rid = call_tool("sql_query", {"query": q})
+
+        elif cmd == "safe":
+            q = input("SAFE SQL> ")
+            rid = call_tool("sql_safe", {"query": q})
+
+        elif cmd == "explain":
+            q = input("SQL> ")
+            rid = call_tool("explain_query", {"query": q, "analyze": False})
+
+        else:
+            print("❓ Unknown command")
+            continue
+
+        print("⏳ Waiting for response...")
+        resp = wait_for_response(rid)
+
+        print("\n🔹 Response:")
+        print(json.dumps(resp, indent=2), "\n")
+
+except KeyboardInterrupt:
+    print("\n👋 Interrupted")
+    proc.terminate()
+    sys.exit(0)

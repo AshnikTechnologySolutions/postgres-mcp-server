@@ -2,6 +2,7 @@
 """
 Fully working RAW MCP client for FastMCP 2.x
 Correctly uses tools/call wrapper
+Matches YOUR actual server tools.
 """
 
 import subprocess
@@ -122,19 +123,27 @@ def call_tool(tool_name, arguments=None):
 
 
 # ─────────────────────────────
-# REPL
+# Valid tool names (from inspect)
 # ─────────────────────────────
+VALID_TOOLS = [
+    "health",
+    "uptime",
+    "sql_query",
+    "sql_safe",
+    "table_stats",
+    "slow_queries",
+    "explain_query"
+]
+
 print("Available commands:")
-print("  health")
-print("  uptime")
-print("  schema")
-print("  sql")
-print("  safe")
-print("  explain")
-print("  table_stats")
-print("  slow_queries")
+for t in VALID_TOOLS:
+    print("  ", t)
 print("  exit\n")
 
+
+# ─────────────────────────────
+# REPL LOOP
+# ─────────────────────────────
 try:
     while True:
         cmd = input("mcp> ").strip().lower()
@@ -144,14 +153,11 @@ try:
             proc.terminate()
             sys.exit(0)
 
-        if cmd == "health":
+        elif cmd == "health":
             rid = call_tool("health")
 
         elif cmd == "uptime":
             rid = call_tool("uptime")
-
-        elif cmd == "schema":
-            rid = call_tool("schema")
 
         elif cmd == "table_stats":
             rid = call_tool("table_stats", {"limit": 10})
@@ -159,20 +165,21 @@ try:
         elif cmd == "slow_queries":
             rid = call_tool("slow_queries", {"limit": 5})
 
-        elif cmd == "sql":
+        elif cmd == "sql_query" or cmd == "sql":
             q = input("SQL> ")
             rid = call_tool("sql_query", {"query": q})
 
-        elif cmd == "safe":
+        elif cmd == "sql_safe" or cmd == "safe":
             q = input("SAFE SQL> ")
             rid = call_tool("sql_safe", {"query": q})
 
-        elif cmd == "explain":
+        elif cmd == "explain_query" or cmd == "explain":
             q = input("SQL> ")
             rid = call_tool("explain_query", {"query": q, "analyze": False})
 
         else:
-            print("❓ Unknown command")
+            print("❓ Unknown or unsupported command")
+            print("Valid:", VALID_TOOLS)
             continue
 
         print("⏳ Waiting for response...")

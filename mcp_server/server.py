@@ -1,28 +1,36 @@
 # mcp_server/server.py
 
 from fastmcp import FastMCP
-import asyncpg
-from mcp_server.config import DATABASE_URL
+from mcp_server.config import ALLOW_ARBITRARY_SQL
+from mcp_server.db import get_pool
 import json
 
 # Create MCP Server
 mcp = FastMCP("postgres-mcp")
 
 
+
+
 # ======================================================
-# SQL QUERY TOOL (unsafe)
+# SQL QUERY TOOL (unsafe: read/write)
 # ======================================================
 @mcp.tool()
 async def sql_query(query: str):
     """Run any SQL query (unsafe: read/write)."""
-    conn = await asyncpg.connect(DATABASE_URL)
+
+    if not ALLOW_ARBITRARY_SQL:
+        return {
+            "ok": False,
+            "error": "Unsafe SQL disabled. Set ALLOW_ARBITRARY_SQL=true in .env"
+        }
+
     try:
-        rows = await conn.fetch(query)
-        return {"ok": True, "rows": [dict(r) for r in rows]}
+        pool = await get_pool(role="write")
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            return {"ok": True, "rows": [dict(r) for r in rows]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()
 
 
 # ======================================================
@@ -36,14 +44,13 @@ async def sql_safe(query: str):
     if any(f in query.lower() for f in forbidden):
         return {"ok": False, "error": "Write operations blocked (SAFE MODE)"}
 
-    conn = await asyncpg.connect(DATABASE_URL)
     try:
-        rows = await conn.fetch(query)
-        return {"ok": True, "rows": [dict(r) for r in rows]}
+        pool = await get_pool(role="read")
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            return {"ok": True, "rows": [dict(r) for r in rows]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()
 
 
 # ======================================================
@@ -52,12 +59,10 @@ async def sql_safe(query: str):
 @mcp.tool()
 async def health():
     """Return DB health and PostgreSQL version."""
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
+    pool = await get_pool(role="read")
+    async with pool.acquire() as conn:
         version = await conn.fetchval("SELECT version()")
         return {"status": "ok", "postgres_version": version}
-    finally:
-        await conn.close()
 
 
 # ======================================================
@@ -66,19 +71,14 @@ async def health():
 @mcp.tool()
 async def uptime():
     """Return PostgreSQL uptime & postmaster start time."""
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        row = await conn.fetchrow("""
+    pool = await get_pool(role="read")
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
             SELECT pg_postmaster_start_time() AS start_time,
                    now() - pg_postmaster_start_time() AS uptime;
         """)
-        return {
-            "ok": True,
-            "started_at": str(row["start_time"]),
-            "uptime": str(row["uptime"])
-        }
-    finally:
-        await conn.close()
+        result = [dict(r) for r in rows]
+        return {"ok": True, **result[0]}
 
 
 # ======================================================
@@ -87,9 +87,7 @@ async def uptime():
 @mcp.tool()
 async def table_stats(limit: int = 50):
     """Return table sizes, row estimates, index sizes."""
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        q = """
+    q = """
         SELECT
           c.relname AS table_name,
           COALESCE(c.reltuples::bigint, 0) AS est_rows,
@@ -102,13 +100,15 @@ async def table_stats(limit: int = 50):
           AND n.nspname = 'public'
         ORDER BY pg_total_relation_size(c.oid) DESC
         LIMIT $1;
-        """
-        rows = await conn.fetch(q, limit)
-        return {"ok": True, "stats": [dict(r) for r in rows]}
+    """
+
+    try:
+        pool = await get_pool(role="read")
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(q, limit)
+            return {"ok": True, "stats": [dict(r) for r in rows]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()
 
 
 # ======================================================
@@ -117,55 +117,102 @@ async def table_stats(limit: int = 50):
 @mcp.tool()
 async def slow_queries(limit: int = 10):
     """Return slowest queries from pg_stat_statements."""
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        q = """
+
+    q = """
         SELECT query, calls, total_time, mean_time
         FROM pg_stat_statements
         ORDER BY total_time DESC
         LIMIT $1;
-        """
-        rows = await conn.fetch(q, limit)
+    """
 
-        parsed = []
-        for r in rows:
-            parsed.append({
-                "query": r["query"],
-                "calls": int(r["calls"]),
-                "total_time_ms": float(r["total_time"]),
-                "mean_time_ms": float(r["mean_time"])
-            })
-        return {"ok": True, "slow_queries": parsed}
-    except asyncpg.UndefinedTableError:
-        return {"ok": False, "error": "pg_stat_statements not enabled"}
+    try:
+        pool = await get_pool(role="read")
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(q, limit)
+            return {"ok": True, "slow_queries": [dict(r) for r in rows]}
     except Exception as e:
+        # Check for pg_stat_statements not enabled
+        if "pg_stat_statements" in str(e):
+            return {"ok": False, "error": "pg_stat_statements not enabled"}
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()
 
 
 # ======================================================
 # EXPLAIN QUERY TOOL
 # ======================================================
 @mcp.tool()
-async def explain_query(query: str, analyze: bool = False):
-    """EXPLAIN (FORMAT JSON) for any read-only SQL."""
+async def explain_query(query: str):
+    """EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false) for any read-only SQL."""
     bad = ["insert", "update", "delete", "drop", "alter", "truncate"]
-    if any(x in query.lower() for x in bad):
+    if any(b in query.lower() for b in bad):
         return {"ok": False, "error": "EXPLAIN allowed only for SELECT"}
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    stmt = f"EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false) {query}"
+
+    pool = await get_pool(role="read")
+    async with pool.acquire() as conn:
+        try:
+            rows = await conn.fetch(stmt)
+            plan = rows[0][0]
+            return {"ok": True, "plan": plan}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+
+# ======================================================
+# INDEX ADVISOR TOOL
+# ======================================================
+
+@mcp.tool()
+async def index_advisor(query: str):
+    """Recommend indexes derived from safe EXPLAIN (no execution)."""
+    if not query or not query.strip():
+        return {"ok": False, "error": "Missing SQL to analyze"}
+
+    forbidden = ["insert", "update", "delete", "drop", "alter", "truncate", "create"]
+    if any(f in query.lower() for f in forbidden):
+        return {"ok": False, "error": "DDL/DML statements are not allowed"}
+
+    stmt = f"EXPLAIN (FORMAT JSON, ANALYZE false, BUFFERS false) {query}"
+
     try:
-        stmt = "EXPLAIN (FORMAT JSON"
-        if analyze:
-            stmt += ", ANALYZE true"
-        stmt += ") " + query
+        pool = await get_pool(role="read")
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(stmt)
+            raw = rows[0][0]
 
-        rows = await conn.fetch(stmt)
-        plan = rows[0][0]  # JSON plan
+            if isinstance(raw, str):
+                raw = json.loads(raw)
 
-        return {"ok": True, "plan": plan}
+            if isinstance(raw, list):
+                plan = raw[0]["Plan"]
+            elif isinstance(raw, dict):
+                plan = raw["Plan"]
+            else:
+                return {"ok": False, "error": "Unexpected EXPLAIN JSON format"}
+
+        recommendations = []
+
+        def walk(node):
+            node_type = node.get("Node Type")
+            rel = node.get("Relation Name")
+            filter_cond = node.get("Filter")
+
+            if node_type == "Seq Scan" and rel and filter_cond:
+                recommendations.append(
+                    f"Seq Scan on '{rel}' with filter '{filter_cond}'. "
+                    f"Consider an index on the filtered columns (equality columns first, range columns next)."
+                )
+
+            for child in node.get("Plans", []):
+                walk(child)
+
+        walk(plan)
+
+        if not recommendations:
+            recommendations.append("No obvious index recommendations found")
+
+        return {"ok": True, "recommendations": recommendations}
+
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()

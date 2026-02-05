@@ -7,7 +7,7 @@ async def get_schema():
         WHERE table_schema = 'public'
         ORDER BY table_name, ordinal_position;
     """
-    pool = await get_pool()
+    pool = await get_pool(role="read")
     async with pool.acquire() as conn:
         rows = await conn.fetch(sql)
 

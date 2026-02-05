@@ -1,15 +1,15 @@
 # mcp_server/tools/uptime.py
-import asyncpg
 from datetime import datetime
 from typing import Any
-from mcp_server.config import DATABASE_URL
+from mcp_server.db import get_pool
 
 # Returns server uptime (interval) and start time
 async def uptime() -> dict[str, Any]:
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool(role="read")
     try:
         q = "SELECT pg_postmaster_start_time() AS start_time, now() - pg_postmaster_start_time() AS uptime;"
-        row = await conn.fetchrow(q)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(q)
         if not row:
             return {"ok": False, "error": "No uptime info"}
         return {
@@ -19,5 +19,3 @@ async def uptime() -> dict[str, Any]:
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        await conn.close()

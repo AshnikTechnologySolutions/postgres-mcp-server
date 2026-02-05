@@ -17,10 +17,11 @@ async def sql_safe(request: Request):
             "error": "Read-only mode: write operations are not allowed"
         }
 
-    pool = await get_pool()
+    pool = await get_pool(role="read")
 
     try:
         async with pool.acquire() as conn:
+            await conn.execute("SET TRANSACTION READ ONLY")
             rows = await conn.fetch(query)
             return {"ok": True, "rows": [dict(r) for r in rows]}
     except Exception as e:

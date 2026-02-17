@@ -1,6 +1,3 @@
-fastapi
-uvicorn
+fastmcp
 asyncpg
-psycopg[binary]
 python-dotenv
-mcp

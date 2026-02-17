@@ -1,41 +1,39 @@
-import os
 import asyncpg
+import os
 
-def _get_database_url(role: str) -> str:
-    target = os.getenv("DEFAULT_DB", "local")
+_read_pool = None
+_write_pool = None
+
+async def get_pool(role="read"):
+    global _read_pool, _write_pool
 
     if role == "read":
-        return os.getenv(
-            "LOCAL_READ_DATABASE_URL"
-            if target == "local"
-            else "REMOTE_READ_DATABASE_URL"
-        )
+        if _read_pool is None:
+            read_url = os.getenv("READ_DATABASE_URL") or os.getenv("DATABASE_URL")
+            if not read_url:
+                raise RuntimeError("READ_DATABASE_URL not configured")
 
-    if role == "write":
-        return os.getenv(
-            "LOCAL_WRITE_DATABASE_URL"
-            if target == "local"
-            else "REMOTE_WRITE_DATABASE_URL"
-        )
+            _read_pool = await asyncpg.create_pool(
+                dsn=read_url,
+                min_size=1,
+                max_size=10,
+                command_timeout=30,
+            )
+        return _read_pool
 
-    raise ValueError(f"Invalid database role: {role}")
+    elif role == "write":
+        if _write_pool is None:
+            write_url = os.getenv("WRITE_DATABASE_URL") or os.getenv("DATABASE_URL")
+            if not write_url:
+                raise RuntimeError("WRITE_DATABASE_URL not configured")
 
+            _write_pool = await asyncpg.create_pool(
+                dsn=write_url,
+                min_size=1,
+                max_size=5,
+                command_timeout=30,
+            )
+        return _write_pool
 
-async def get_pool(role: str = "read"):
-    database_url = _get_database_url(role)
-
-    pool = await asyncpg.create_pool(
-        database_url,
-        min_size=1,
-        max_size=5,
-        timeout=5,
-    )
-
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            SET statement_timeout = '5s';
-            SET idle_in_transaction_session_timeout = '10s';
-            SET search_path = public;
-        """)
-
-    return pool
+    else:
+        raise ValueError("Invalid pool role")

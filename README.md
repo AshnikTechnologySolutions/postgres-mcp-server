@@ -91,7 +91,7 @@ postgres-mcp-server/
 │   ├── router.py
 │   └── tools/
 │       ├── query.py
-│       ├── safe_query.py
+│       ├── query_safe.py
 │       ├── schema.py
 │       ├── stats.py
 │       ├── explain.py

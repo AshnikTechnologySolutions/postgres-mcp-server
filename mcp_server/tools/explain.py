@@ -1,10 +1,11 @@
 # mcp_server/tools/explain.py
 from typing import Any
+from fastapi import Request
 from mcp_server.db import get_pool
 
 # Explain (or Explain Analyze) a given SQL. Returns JSON plan or text.
 # payload: {"query": "...", "analyze": false}
-async def explain_query(query: str, analyze: bool = False) -> dict[str, Any]:
+async def execute_explain_query(query: str, analyze: bool = False) -> dict[str, Any]:
     if not query or not query.strip():
         return {"ok": False, "error": "Missing SQL to explain"}
 
@@ -30,3 +31,14 @@ async def explain_query(query: str, analyze: bool = False) -> dict[str, Any]:
             return {"ok": True, "plan": raw}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+async def explain_query(request: Request) -> dict[str, Any]:
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON body"}
+
+    query = data.get("query")
+    analyze = bool(data.get("analyze", False))
+    return await execute_explain_query(query, analyze)

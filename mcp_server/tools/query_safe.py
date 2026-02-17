@@ -1,4 +1,5 @@
 import re
+from fastapi import Request
 from mcp_server.db import get_pool
 
 FORBIDDEN = re.compile(
@@ -23,3 +24,12 @@ async def execute_safe_query(query: str):
                 return {"ok": True, "rows": [dict(r) for r in rows]}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+async def sql_safe(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON body"}
+
+    query = data.get("query")
+    return await execute_safe_query(query)

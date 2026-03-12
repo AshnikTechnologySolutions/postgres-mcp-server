@@ -1,34 +1,22 @@
 from fastapi import Request
-from mcp_server.db import get_pool
+
+from mcp_server.auth import require_request_api_key
 from mcp_server.config import ALLOW_ARBITRARY_SQL
+from mcp_server.sql import execute_sql, fetch_rows, is_fetch_sql, normalize_query
+
 
 async def sql_query(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        return {"ok": False, "error": "Invalid JSON body"}
-
+    await require_request_api_key(request)
+    data = await request.json()
     query = data.get("query")
 
-    if not query:
-        return {"ok": False, "error": "Missing SQL query"}
-
     if not ALLOW_ARBITRARY_SQL:
-        return {
-            "ok": False,
-            "error": "Unsafe SQL disabled. Set ALLOW_ARBITRARY_SQL=true in .env"
-        }
-
-    pool = await get_pool(role="write")
+        return {"ok": False, "error": "Unsafe SQL disabled. Set ALLOW_ARBITRARY_SQL=true in .env"}
 
     try:
-        async with pool.acquire() as conn:
-            # Return rows for row-producing statements, command status otherwise.
-            if query.lstrip().lower().startswith(("select", "with", "show", "explain", "values")):
-                rows = await conn.fetch(query)
-                return {"ok": True, "rows": [dict(r) for r in rows]}
-
-            result = await conn.execute(query)
-            return {"ok": True, "result": result}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        sql = normalize_query(query)
+        if is_fetch_sql(sql):
+            return {"ok": True, "rows": await fetch_rows(sql, role="write")}
+        return {"ok": True, "command": await execute_sql(sql, role="write")}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}

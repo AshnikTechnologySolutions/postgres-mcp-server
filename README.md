@@ -1,172 +1,81 @@
-# 🚀 AI-Enhanced PostgreSQL MCP Server  
+# PostgreSQL MCP Server
 ![Architecture](./assets/architecture.png)
-A full-featured **Model Context Protocol (MCP) Server** written entirely in **Python**, enabling **Claude, ChatGPT, or any LLM agent** to securely interact with databases using natural language.
 
----
+A Python MCP server for controlled agent access to PostgreSQL over STDIO, with an optional FastAPI adapter for HTTP deployments.
 
-# 📌 Overview
+## What it does
 
-This repository turns your PostgreSQL (and other data sources) into a **conversational AI knowledge engine**.
+- Exposes MCP tools for `health`, `uptime`, `schema`, `table_stats`, `slow_queries`, `sql_safe`, `explain_query`, `index_advisor`, `audit_logs`, and optional `sql_query`
+- Uses separate read/write database roles
+- Enforces read-only mode with PostgreSQL transactions, not just keyword filtering
+- Reuses shared async connection pools for higher concurrency and lower latency
+- Adds structured audit logging for tool calls
+- Supports `pg_stat_statements` when available for slow-query analysis
 
-### 🧠 It enables:
-- Natural-language SQL query generation  
-- Schema-aware AI interactions  
-- Real-time health checks  
-- DB performance monitoring  
-- Explain plan visualization  
-- Safe SQL firewall  
-- Multi-database routing  
-- Claude Desktop as a live SQL assistant  
+## Production notes
 
-### 🎯 Ideal For:
-- DBAs  
-- Data engineers  
-- AI developers  
-- Analysts  
-- Teams building AI copilots  
-- Multi-DB integration layers  
+- Prefer STDIO MCP transport for local desktop integrations.
+- Keep `ALLOW_ARBITRARY_SQL=false` in production unless you fully trust the client and the write role.
+- Grant the read role no write privileges at the database level.
+- If you expose the FastAPI adapter, set `MCP_HTTP_API_KEY` and restrict network access to trusted callers.
 
----
+## Repository structure
 
-# ✨ Features
-
-## 🔍 1. Natural-Language SQL Assistant
-- AI → SQL conversion with schema context  
-- Auto schema refresh every 5 minutes  
-- Pretty table formatting  
-- Tool routing (intent detection)  
-- Timing logs: MCP time, query time, RTT  
-
-## 🛠️ 2. PostgreSQL MCP Tools
-The MCP server exposes the following tools:
-
-| Tool Name | Description |
-|-----------|-------------|
-| `sql_query` | Full SQL access (read/write) |
-| `sql_safe` | Read-only SQL with firewall |
-| `explain` | Query plan (text/tree/json) |
-| `health` | DB health, version, connections |
-| `uptime` | Database uptime via pg_postmaster_start_time |
-| `schema` | Live table/column metadata |
-| `stats` | Row counts, table size, index usage |
-
-## 🧩 3. Multi-Target Support
-Already implemented for PostgreSQL.  
-Extendable (plug-in architecture) to:
-
-- MySQL via `aiomysql`
-- MongoDB via `motor`
-- Redis / Valkey via `aioredis`
-- REST APIs using `httpx`
-- Filesystem tools using Python I/O
-
-## 🧬 4. Pure-Python Server (FastMCP)  
-- Extremely reliable MCP engine 
-- MCP server runs over STDIO 
-- Production-safe event loop
-- First-class Claude Desktop compatibility  
-
-## 🔒 5. Security
-- .env-based secrets  
-- No hardcoded credentials  
-- Optional DB SSL  
-- Read-only firewall (`sql_safe`)  
-- Role-based PostgreSQL users  
-- Isolation via Python virtual environment  
-
----
-
-# 📦 Repository Structure
-
-```
+```text
 postgres-mcp-server/
 ├── cli.py
-├── .env.example       
-├── test_client.py
+├── .env.example
 ├── requirements.txt
-├── mcp_server/
-│   ├── server.py
-│   ├── config.py
-│   ├── db.py
-│   ├── router.py
-│   └── tools/
-│       ├── query.py
-│       ├── query_safe.py
-│       ├── schema.py
-│       ├── stats.py
-│       ├── explain.py
-│       ├── uptime.py
-│       ├── health.py
-└── assets/
-    └── architecture.png
+├── test_client.py
+└── mcp_server/
+    ├── audit.py
+    ├── auth.py
+    ├── config.py
+    ├── db.py
+    ├── router.py
+    ├── server.py
+    ├── sql.py
+    └── tools/
 ```
 
----
-
-# 🏗️ Installation
-
-## 1️⃣ Clone the repository
+## Installation
 
 ```bash
 git clone https://github.com/AshnikTechnologySolutions/postgres-mcp-server
 cd postgres-mcp-server
-```
-
-## 2️⃣ Create Virtual Environment
-
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
-## 3️⃣ Install Requirements
-
-```bash
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-## 4️⃣ Configure Database URL
+## Configuration
 
-**Option A: export variable**
+Required environment variables:
 
-```bash
-export DATABASE_URL="postgresql://mcpuser:mcppassword@localhost:5432/mcp_demo"
+```env
+DEFAULT_DB=local
+ALLOW_ARBITRARY_SQL=false
+
+LOCAL_READ_DATABASE_URL=postgresql://mcp_read:password@localhost:5432/mcp_demo
+LOCAL_WRITE_DATABASE_URL=postgresql://mcp_write:password@localhost:5432/mcp_demo
+REMOTE_READ_DATABASE_URL=postgresql://mcp_read:password@remote-host:5432/mcp_demo
+REMOTE_WRITE_DATABASE_URL=postgresql://mcp_write:password@remote-host:5432/mcp_demo
 ```
 
-**Option B: .env file**
+Recommended PostgreSQL roles:
 
-```
-DATABASE_URL=postgresql://mcpuser:mcppassword@localhost:5432/mcp_demo
-```
+- `mcp_read`: `CONNECT` plus `SELECT` on approved schemas only
+- `mcp_write`: narrowly scoped DML privileges for trusted automation only
+- Enable `pg_stat_statements` if you want `slow_queries`
 
----
-
-# 🚀 Run MCP Server
+## Running the MCP server
 
 ```bash
 python3 cli.py
 ```
 
-You should see the FastMCP banner:
-
-```
-FastMCP 2.x
-Server: postgres-mcp
-Transport: STDIO
-Status: Running...
-```
-
----
-
-# 🧠 Connect with Claude Desktop (Local MCP Mode)
-
-Create or update:
-
-```
-~/Library/Application Support/Claude/claude_desktop_config.json
-```
-
-Add:
+Claude Desktop example:
 
 ```json
 {
@@ -177,210 +86,58 @@ Add:
       "args": ["cli.py"],
       "cwd": "/Users/yourname/postgres-mcp-server",
       "env": {
-        "DATABASE_URL": "postgresql://mcpuser:mcppassword@localhost:5432/mcp_demo"
+        "DEFAULT_DB": "local",
+        "ALLOW_ARBITRARY_SQL": "false",
+        "LOCAL_READ_DATABASE_URL": "postgresql://mcp_read:password@localhost:5432/mcp_demo",
+        "LOCAL_WRITE_DATABASE_URL": "postgresql://mcp_write:password@localhost:5432/mcp_demo"
       }
     }
   }
 }
 ```
 
-Restart Claude.
+## Available tools
 
----
+| Tool | Purpose |
+| --- | --- |
+| `health` | PostgreSQL version, current DB, current user |
+| `uptime` | Postmaster start time and uptime |
+| `schema` | Public schema table/column metadata |
+| `table_stats` | Table size and estimated row counts |
+| `slow_queries` | Top queries from `pg_stat_statements` |
+| `sql_safe` | Single-statement read-only SQL in a read-only transaction |
+| `explain_query` | JSON `EXPLAIN` for read-only SQL |
+| `index_advisor` | Simple recommendations based on the explain plan |
+| `audit_logs` | Recent structured audit events with optional filters |
+| `sql_query` | Optional arbitrary SQL when `ALLOW_ARBITRARY_SQL=true` |
 
-# 🎤 Example Questions Claude Can Answer
+Audit events are written to `AUDIT_LOG_PATH` as JSON Lines with:
 
-```
-Top 10 customers by revenue
-Uptime of my database
-Show table stats
-Explain: SELECT * FROM orders LIMIT 10
-List all tables
-Slowest queries
-Schema for payments table
-```
+- UTC timestamp
+- tool name
+- success/failure state
+- transport (`mcp` or `http`)
+- redacted SQL preview
+- SHA-256 of the original SQL
+- error text and lightweight metadata
 
----
+## Optional FastAPI adapter
 
-# 🛠 MCP Tools: Detailed Documentation
+The repo also includes `mcp_server/router.py` for teams that want HTTP endpoints in front of the same query logic.
 
-## 1. `sql_query`
-Runs any SQL.
+- Set `MCP_HTTP_API_KEY`
+- Require TLS and network allow-lists
+- Do not expose the write endpoint publicly
 
-```json
-{
-  "tool": "sql_query",
-  "query": "SELECT * FROM customers LIMIT 5;"
-}
-```
-
-## 2. `sql_safe`
-Blocks dangerous commands.
-
-Blocked keywords:
-```
-insert, update, delete, alter, drop, truncate
-```
-
-## 3. `schema`
-Returns tables + columns.
-
-## 4. `stats`
-Shows:
-- row count  
-- table size  
-- index sizes  
-
-## 5. `explain`
-Returns EXPLAIN output.
-
-## 6. `uptime`
-Uses PostgreSQL internal:
-
-```
-SELECT now() - pg_postmaster_start_time();
-```
-
-## 7. `health`
-Checks:
-- PostgreSQL version  
-- connection  
-- uptime  
-
----
-
-# 🧪 Test Client (local)
+## Local verification
 
 ```bash
-python3 test_client.py
+python3 -m py_compile cli.py mcp_server/server.py mcp_server/db.py mcp_server/sql.py mcp_server/tools/*.py mcp_server/router.py
 ```
 
----
+## Roadmap ideas
 
-# 🌐 Deployment Models
-
-## 🔹 Model A — Everything on one VM  
-(Your laptop or dev server)
-
-## 🔹 Model B — 3-Tier  
-```
-VM-1 → Claude / Chatbot  
-VM-2 → MCP Server  
-VM-3 → PostgreSQL  
-```
-
-Firewall:
-
-Postgres:
-```
-sudo ufw allow from <MCP_IP> to any port 5432
-```
-
-MCP:
-```
-sudo ufw allow from <CLIENT_IP> to any port 8000
-```
-
----
-
-# 🔐 Security Best Practices
-
-| Layer | Protection |
-|-------|------------|
-| MCP server | no write operations via safe_query |
-| Postgres | dedicated user with least privileges |
-| Networking | firewall allow-list per host |
-| Secrets | .env + chmod 600 |
-| Claude | runs MCP in isolated subprocess |
-
----
-
-# 🧩 Optional Extensions
-
-You can add new targets easily.
-
-## MySQL example
-
-```python
-import aiomysql
-
-@mcp.tool()
-async def mysql_query(query: str):
-    conn = await aiomysql.connect(...)
-    ...
-```
-
-## MongoDB example
-
-```python
-from motor.motor_asyncio import AsyncIOMotorClient
-```
-
-## REST API example
-
-```python
-import httpx
-```
-
-## Redis example
-
-```python
-import aioredis
-```
-
----
-
-# 🧯 Troubleshooting
-
-### ❌ “Server disconnected”  
-Fix: ensure claude_desktop_config.json has correct `cwd`.
-
-### ❌ “No module named mcp_server”  
-Fix:  
-```
-export PYTHONPATH="$PWD"
-```
-
-### ❌ asyncpg connection failure  
-Check:
-```
-psql <connection-url>
-```
-
----
-
-# 🛡 Recommended .gitignore
-
-```
-venv/
-.env
-*.csv
-*.log
-__pycache__/
-mcp_data/
-```
-
----
-
-# 🤝 Contributing
-
-PRs welcome!  
-Roadmap available on request.
-
----
-
-# ⭐ Support
-
-If you'd like:
-
-- A web UI dashboard  
-- Multi-target routing  
-- Request logging  
-- RBAC + auth tokens  
-- Docker deployment  
-
-I can generate it immediately.
-
----
-
-# 🚀 Happy Hacking with MCP + Python + PostgreSQL!
+- Add tenant-aware schema allow-lists
+- Add structured audit logging sinks beyond JSONL
+- Add parameterized tool variants instead of raw SQL for common operations
+- Add automated tests with a disposable PostgreSQL instance

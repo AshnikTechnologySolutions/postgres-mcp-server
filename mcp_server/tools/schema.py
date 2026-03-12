@@ -1,18 +1,30 @@
-from mcp_server.db import get_pool
+from mcp_server.sql import fetch_rows
+
 
 async def get_schema():
-    sql = """
-        SELECT table_name, column_name
+    rows = await fetch_rows(
+        """
+        SELECT
+            table_name,
+            column_name,
+            data_type,
+            is_nullable
         FROM information_schema.columns
         WHERE table_schema = 'public'
-        ORDER BY table_name, ordinal_position;
-    """
-    pool = await get_pool(role="read")
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(sql)
+        ORDER BY table_name, ordinal_position
+        """,
+        role="read",
+        read_only=True,
+    )
 
-    schema = {}
-    for r in rows:
-        schema.setdefault(r["table_name"], []).append(r["column_name"])
+    schema: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        schema.setdefault(row["table_name"], []).append(
+            {
+                "column_name": row["column_name"],
+                "data_type": row["data_type"],
+                "is_nullable": row["is_nullable"],
+            }
+        )
 
     return {"ok": True, "schema": schema}

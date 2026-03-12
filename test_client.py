@@ -126,13 +126,16 @@ def call_tool(tool_name, arguments=None):
 # Valid tool names (from inspect)
 # ─────────────────────────────
 VALID_TOOLS = [
+    "audit_logs",
     "health",
     "uptime",
+    "schema",
     "sql_query",
     "sql_safe",
     "table_stats",
     "slow_queries",
-    "explain_query"
+    "explain_query",
+    "index_advisor",
 ]
 
 print("Available commands:")
@@ -153,6 +156,9 @@ try:
             proc.terminate()
             sys.exit(0)
 
+        elif cmd == "audit_logs":
+            rid = call_tool("audit_logs", {"limit": 10})
+
         elif cmd == "health":
             rid = call_tool("health")
 
@@ -165,6 +171,9 @@ try:
         elif cmd == "slow_queries":
             rid = call_tool("slow_queries", {"limit": 5})
 
+        elif cmd == "schema":
+            rid = call_tool("schema")
+
         elif cmd == "sql_query" or cmd == "sql":
             q = input("SQL> ")
             rid = call_tool("sql_query", {"query": q})
@@ -176,6 +185,10 @@ try:
         elif cmd == "explain_query" or cmd == "explain":
             q = input("SQL> ")
             rid = call_tool("explain_query", {"query": q, "analyze": False})
+
+        elif cmd == "index_advisor" or cmd == "advisor":
+            q = input("SQL> ")
+            rid = call_tool("index_advisor", {"query": q})
 
         else:
             print("❓ Unknown or unsupported command")

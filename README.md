@@ -26,6 +26,7 @@ postgres-mcp-server/
 ├── cli.py
 ├── .env.example
 ├── requirements.txt
+├── scripts/
 ├── test_client.py
 └── mcp_server/
     ├── audit.py
@@ -47,6 +48,8 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+cp .env.example .env.claude.local
+cp .env.example .env.claude.remote
 ```
 
 ## Configuration
@@ -69,32 +72,71 @@ Recommended PostgreSQL roles:
 - `mcp_write`: narrowly scoped DML privileges for trusted automation only
 - Enable `pg_stat_statements` if you want `slow_queries`
 
+Claude-specific private env files:
+
+- `.env.claude.local`: credentials and settings for the local database target
+- `.env.claude.remote`: credentials and settings for the remote database target
+- Both files are ignored by git via `.env.*`
+
 ## Running the MCP server
 
 ```bash
-python3 cli.py
+./venv/bin/python cli.py
 ```
 
-Claude Desktop example:
+## Claude Desktop setup without inline credentials
+
+Use the provided launcher scripts so Claude Desktop never stores database URLs in `claude_desktop_config.json`.
+
+Launcher scripts:
+
+- `scripts/run_claude_local.sh`
+- `scripts/run_claude_remote.sh`
+
+Each script:
+
+- loads a private env file from the repo
+- uses the repo virtualenv at `venv/bin/python`
+- starts `cli.py` over STDIO
+
+Example private env files:
+
+```env
+# .env.claude.local
+DEFAULT_DB=local
+ALLOW_ARBITRARY_SQL=false
+LOCAL_READ_DATABASE_URL=postgresql://mcp_read:password@localhost:5432/mcp_demo
+LOCAL_WRITE_DATABASE_URL=postgresql://mcp_write:password@localhost:5432/mcp_demo
+```
+
+```env
+# .env.claude.remote
+DEFAULT_DB=remote
+ALLOW_ARBITRARY_SQL=false
+REMOTE_READ_DATABASE_URL=postgresql://mcp_read:password@remote-host:5432/mcp_demo
+REMOTE_WRITE_DATABASE_URL=postgresql://mcp_write:password@remote-host:5432/mcp_demo
+```
+
+Claude Desktop config example:
 
 ```json
 {
   "mcpServers": {
-    "postgres-mcp": {
+    "postgres-mcp-local": {
       "type": "process",
-      "command": "python3",
-      "args": ["cli.py"],
-      "cwd": "/Users/yourname/postgres-mcp-server",
-      "env": {
-        "DEFAULT_DB": "local",
-        "ALLOW_ARBITRARY_SQL": "false",
-        "LOCAL_READ_DATABASE_URL": "postgresql://mcp_read:password@localhost:5432/mcp_demo",
-        "LOCAL_WRITE_DATABASE_URL": "postgresql://mcp_write:password@localhost:5432/mcp_demo"
-      }
+      "command": "/Users/yourname/postgres-mcp-server/scripts/run_claude_local.sh",
+      "cwd": "/Users/yourname/postgres-mcp-server"
+    },
+    "postgres-mcp-remote": {
+      "type": "process",
+      "command": "/Users/yourname/postgres-mcp-server/scripts/run_claude_remote.sh",
+      "cwd": "/Users/yourname/postgres-mcp-server"
     }
   }
 }
 ```
+
+This keeps secrets out of Claude Desktop config. Credentials remain only in your local `.env.claude.*` files.
 
 ## Available tools
 

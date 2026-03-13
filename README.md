@@ -30,6 +30,8 @@ Update `.env.claude.local` and `.env.claude.remote` with your real credentials, 
 ./venv/bin/python cli.py
 ```
 
+For a full setup and operations guide, see [RUNBOOK.md](./RUNBOOK.md).
+
 ## Why this exists
 
 This project gives AI agents controlled access to PostgreSQL through MCP instead of handing them raw network/database access. The focus is production-minded operation:

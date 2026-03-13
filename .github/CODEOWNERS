@@ -1,0 +1,19 @@
+# Default owner for everything
+* @sachindabir
+
+# Core application code
+/mcp_server/ @sachindabir @veerendra-pulapa
+
+# Scripts
+/scripts/ @sachindabir @veerendra-pulapa
+
+# Governance and documentation
+/README.md @sachindabir
+/LICENSE @sachindabir
+/GOVERNANCE.md @sachindabir
+/CONTRIBUTING.md @sachindabir
+/CHANGELOG.md @sachindabir
+/RUNBOOK.md @sachindabir
+
+# Repo control
+/.github/ @sachindabir

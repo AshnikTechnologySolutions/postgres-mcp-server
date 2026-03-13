@@ -3,6 +3,26 @@
 
 Secure MCP access to PostgreSQL for Claude Desktop and other MCP clients, with read-only enforcement, pooled async connections, audit logging, and separate local/remote database targets.
 
+## Status
+
+This project is production-oriented and suitable for controlled internal deployments, evaluation environments, and pilot use cases.
+
+It already includes strong operational foundations:
+
+- read-only query enforcement for safe tools
+- separate read and write database roles
+- shared async connection pools
+- audit logging
+- Claude Desktop integration without inline database credentials
+
+Before using it for broad or regulated production workloads, we recommend adding:
+
+- schema, table, and column allow-lists
+- response redaction for sensitive data
+- secret-manager integration
+- automated tests and deployment checks
+- credential rotation without restart
+
 ## Highlights
 
 - MCP tools for `health`, `uptime`, `schema`, `table_stats`, `slow_queries`, `sql_safe`, `explain_query`, `index_advisor`, `audit_logs`, and optional `sql_query`

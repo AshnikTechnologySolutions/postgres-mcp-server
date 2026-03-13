@@ -1,4 +1,4 @@
-> **Official repository maintained by Ashnik Technology Solutions Pvt Ltd**
+ **Official repository maintained by Ashnik Technology Solutions Pvt Ltd**
 # PostgreSQL MCP Server
 ### Ashnik Secure MCP Bridge for PostgreSQL
 ![Architecture](./assets/architecture.png)

@@ -1,9 +1,20 @@
- **Official repository maintained by Ashnik Technology Solutions Pvt Ltd**
+> **Official repository maintained by Ashnik Technology Solutions Pvt Ltd**
+
 # PostgreSQL MCP Server
-### Ashnik Secure MCP Bridge for PostgreSQL
+### Ashnik Secure MCP Bridge For PostgreSQL
 ![Architecture](./assets/architecture.png)
 
-A secure Model Context Protocol (MCP) server for PostgreSQL that enables AI assistants such as Claude Desktop and other MCP clients to safely query PostgreSQL databases using controlled read-only access.
+A secure **Model Context Protocol (MCP)** server for PostgreSQL that enables AI assistants such as Claude Desktop and other MCP clients to safely query PostgreSQL databases using controlled read-only access and secure connection handling.
+
+## What this project provides
+
+- Secure MCP access to PostgreSQL
+- Read-only query enforcement for AI tools
+- Separate read and write database roles
+- Shared async connection pools
+- Audit logging for database access
+- Claude Desktop integration without exposing credentials
+
 
 ## Status
 

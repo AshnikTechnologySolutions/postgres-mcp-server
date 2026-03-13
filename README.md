@@ -1,3 +1,4 @@
+> **Official repository maintained by Ashnik Technology Solutions Pvt Ltd**
 # PostgreSQL MCP Server
 ![Architecture](./assets/architecture.png)
 
@@ -232,12 +233,61 @@ python3 test_client.py
 
 ## Changelog
 
-Project release notes are tracked in [CHANGELOG.md](./CHANGELOG.md).
+Release history and notable changes are documented in the
+[CHANGELOG.md](./CHANGELOG.md).
+
+Each release describes:
+
+- new features
+- security improvements
+- performance enhancements
+- bug fixes
+- breaking changes (if any)
+
+We recommend reviewing the changelog before upgrading between versions.
+
 
 ## Contributing
 
-Contribution guidance lives in [CONTRIBUTING.md](./CONTRIBUTING.md).
+Contributions from the community are welcome.
+
+You can contribute in several ways:
+
+- reporting issues
+- proposing improvements
+- submitting pull requests
+- improving documentation
+- suggesting security or operational enhancements
+
+Before contributing, please review the contribution guidelines in  
+[CONTRIBUTING.md](./CONTRIBUTING.md).
+
+### Development workflow
+
+Typical contribution flow:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with clear commit messages
+4. Add tests or documentation if applicable
+5. Submit a pull request
+
+All pull requests are reviewed by project maintainers.
+
+### Governance
+
+Project governance and stewardship are described in  
+[GOVERNANCE.md](./GOVERNANCE.md).
+
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](./LICENSE).
+This project is licensed under the **Apache License 2.0**.
+
+See the full license text in the  
+[LICENSE](./LICENSE) file.
+
+Copyright © Ashnik Technology Solutions Pvt Ltd.
+
+Unless otherwise stated, all contributions to this repository are
+distributed under the same license.

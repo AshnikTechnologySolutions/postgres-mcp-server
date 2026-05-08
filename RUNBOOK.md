@@ -17,7 +17,8 @@ Primary goals:
 
 You need:
 
-- macOS or Linux shell access
+- macOS shell access for the local Docker Desktop observability walkthrough
+- Linux or other hosts for real deployment targets
 - Python 3
 - PostgreSQL credentials for dedicated read and optional write roles
 - Claude Desktop if you want desktop MCP integration
@@ -102,6 +103,15 @@ Optional HTTP setting:
 MCP_HTTP_API_KEY=change-me
 ```
 
+Optional OpenTelemetry settings:
+
+```env
+OTEL_ENABLED=true
+OTEL_SERVICE_NAME=postgres-mcp-server
+OTEL_ENVIRONMENT=production
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
+```
+
 ## 6. Local server startup
 
 Run directly:
@@ -111,6 +121,42 @@ Run directly:
 ```
 
 This starts the MCP server over STDIO.
+
+## 6A. HTTP deployment mode
+
+If you need NGINX between the AI client and the MCP service, use the HTTP adapter instead of STDIO:
+
+```bash
+uvicorn mcp_server.http_app:app --host 127.0.0.1 --port 8000
+```
+
+Use this only for remote HTTP deployments. Do not put NGINX in front of local Claude Desktop STDIO mode.
+
+Deployment starter files:
+
+- `deployment/nginx/mcp-http.conf`
+- `deployment/otel/otel-collector.yaml`
+- `deployment/observability/README.md`
+- `deployment/observability/LOCAL_INTEGRATION_TEST.md`
+
+When `OTEL_ENABLED=true`, the HTTP app emits request traces and the shared DB execution layer emits PostgreSQL spans.
+When `OTEL_ENABLED=true` in `.env.claude.local` or `.env.claude.remote`, Claude Desktop STDIO tool invocations also emit MCP tool spans and nested PostgreSQL spans.
+
+For the local Docker Desktop sequence on macOS, use:
+
+```bash
+./scripts/start_tempo_local.sh
+./scripts/start_otel_collector_local.sh
+./scripts/start_mcp_http_otel_local.sh
+```
+
+Optional local metrics and logs:
+
+```bash
+./scripts/start_prometheus_local.sh
+./scripts/start_loki_local.sh
+./scripts/start_promtail_local.sh
+```
 
 ## 7. Claude Desktop setup
 
@@ -140,8 +186,14 @@ Launcher behavior:
 - loads `.env.claude.local` or `.env.claude.remote`
 - uses `venv/bin/python`
 - starts `cli.py`
+- exports STDIO spans when `OTEL_ENABLED=true`
 
 After updating Claude Desktop config, restart Claude Desktop.
+
+Production note:
+
+- the `deployment/*local*` files and `scripts/start_*_local.sh` scripts are local validation helpers
+- production deployment should replace local-only values like `host.docker.internal`, local temp paths, and non-TLS ports with real environment-specific settings
 
 ## 8. Supported tools
 
@@ -156,6 +208,16 @@ Available MCP tools:
 - `explain_query`
 - `index_advisor`
 - `audit_logs`
+- `readiness`
+- `config_status`
+- `audit_summary`
+- `access_scope`
+- `pool_status`
+- `locks`
+- `index_usage`
+- `vacuum_status`
+- `replication_status`
+- `redaction_test`
 - `sql_query` when `ALLOW_ARBITRARY_SQL=true`
 
 Tool guidance:
@@ -163,6 +225,12 @@ Tool guidance:
 - use `sql_safe` for normal querying
 - use `explain_query` to inspect plans safely
 - use `index_advisor` for first-pass tuning guidance
+- use `readiness` before exposing the service or after DB changes
+- use `config_status`, `pool_status`, and `audit_summary` for operations troubleshooting
+- use `access_scope` during security reviews to confirm read-role visibility
+- use `locks`, `index_usage`, and `vacuum_status` for day-2 PostgreSQL operations
+- use `replication_status` for HA, replica, and migration visibility
+- use `redaction_test` when validating masking behavior before exposing data
 - keep `sql_query` disabled in production unless there is a strong operational reason
 
 ## 9. Example usage in Claude
@@ -190,6 +258,8 @@ Each event includes:
 - tool name
 - success/failure
 - transport
+- request ID
+- trace ID and span ID when tracing is active
 - redacted SQL preview
 - query hash
 - error/details metadata
@@ -205,6 +275,12 @@ Or through MCP:
 - `Show the last 20 audit log events`
 - `Show failed audit log events`
 - `Show audit logs for sql_safe`
+
+For HTTP requests, the same `request_id` is also returned as the `X-Request-Id` response header and attached to the current trace span. That lets you correlate:
+
+- an HTTP request
+- a Grafana trace
+- the corresponding audit JSONL event
 
 ## 11. Security controls
 
@@ -261,6 +337,18 @@ Interactive test client:
 python3 test_client.py
 ```
 
+Unit tests (no database required):
+
+```bash
+./venv/bin/python -m pytest tests/ -v --ignore=tests/test_integration.py
+```
+
+Integration tests (requires `LOCAL_READ_DATABASE_URL` set in `.env.claude.local`):
+
+```bash
+./venv/bin/python -m pytest tests/test_integration.py -v
+```
+
 ## 14. Troubleshooting
 
 ### `ModuleNotFoundError: asyncpg`
@@ -303,11 +391,30 @@ Check:
 
 ### `pg_stat_statements` errors
 
-Enable the extension if you want `slow_queries`:
+`slow_queries` requires the extension to be both installed and preloaded. Two steps are required:
+
+**Step 1 — add to `postgresql.conf` and restart PostgreSQL:**
+
+```text
+shared_preload_libraries = 'pg_stat_statements'
+```
+
+```bash
+# macOS Homebrew
+brew services restart postgresql@17
+
+# Linux systemd
+sudo systemctl restart postgresql
+```
+
+**Step 2 — create the extension (once per database, after restart):**
 
 ```sql
-CREATE EXTENSION pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+GRANT SELECT ON pg_stat_statements TO mcp_read;
 ```
+
+If you skip step 1, the extension appears installed but queries against `pg_stat_statements` fail at runtime. The `readiness` tool will report `pg_stat_statements` as `ok: false` with a descriptive error — the rest of the service remains fully operational.
 
 ### No audit logs appearing
 

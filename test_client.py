@@ -69,10 +69,10 @@ def wait_for_response(req_id, timeout=3):
 
         if not line:
             continue
-        
+
         try:
             msg = json.loads(line)
-        except:
+        except Exception:
             print(f"🔸 Non-JSON output: {line}")
             continue
 

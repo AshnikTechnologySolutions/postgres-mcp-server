@@ -1,15 +1,8 @@
-from fastapi import Request
-
-from mcp_server.auth import require_request_api_key
 from mcp_server.config import ALLOW_ARBITRARY_SQL
 from mcp_server.sql import execute_sql, fetch_rows, is_fetch_sql, normalize_query
 
 
-async def sql_query(request: Request):
-    await require_request_api_key(request)
-    data = await request.json()
-    query = data.get("query")
-
+async def sql_query(query: str):
     if not ALLOW_ARBITRARY_SQL:
         return {"ok": False, "error": "Unsafe SQL disabled. Set ALLOW_ARBITRARY_SQL=true in .env"}
 

@@ -3,19 +3,20 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import os
 import re
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from mcp_server.config import AUDIT_LOG_MAX_QUERY_PREVIEW, AUDIT_LOG_PATH as _AUDIT_LOG_PATH
+from mcp_server.otel import current_trace_context
+from mcp_server.request_context import get_request_id
+
 _STRING_LITERAL_RE = re.compile(r"'(?:''|[^'])*'")
-_DOUBLE_QUOTED_RE = re.compile(r'"(?:\\"|[^"])*"')
 _NUMERIC_LITERAL_RE = re.compile(r"\b\d+(?:\.\d+)?\b")
 
-AUDIT_LOG_PATH = Path(os.getenv("AUDIT_LOG_PATH", "mcp_audit.log"))
-AUDIT_LOG_MAX_QUERY_PREVIEW = int(os.getenv("AUDIT_LOG_MAX_QUERY_PREVIEW", "240"))
+AUDIT_LOG_PATH = Path(_AUDIT_LOG_PATH)
 
 
 def _sanitize_query(query: str | None) -> str | None:
@@ -23,7 +24,6 @@ def _sanitize_query(query: str | None) -> str | None:
         return None
 
     sanitized = _STRING_LITERAL_RE.sub("'?'", query)
-    sanitized = _DOUBLE_QUOTED_RE.sub('"?"', sanitized)
     sanitized = _NUMERIC_LITERAL_RE.sub("?", sanitized)
     sanitized = " ".join(sanitized.split())
     return sanitized[:AUDIT_LOG_MAX_QUERY_PREVIEW]
@@ -55,11 +55,16 @@ async def log_audit_event(
     details: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> None:
+    trace_context = current_trace_context()
     event = {
         "timestamp": datetime.now(UTC).isoformat(),
+        "level": "info" if ok else "error",
         "tool_name": tool_name,
         "ok": ok,
         "transport": transport,
+        "request_id": get_request_id(),
+        "trace_id": trace_context["trace_id"],
+        "span_id": trace_context["span_id"],
         "query_preview": _sanitize_query(query),
         "query_sha256": _query_sha256(query),
         "error": error,
@@ -86,9 +91,12 @@ async def read_audit_events(
     if not path.exists():
         return []
 
+    # When filtering, read a larger window so filters have enough events to match against.
+    scan_size = max(limit * 50, 1000) if (tool_name is not None or ok is not None) else max(limit * 20, 200)
+
     def _read_sync() -> list[dict[str, Any]]:
         with path.open("r", encoding="utf-8") as handle:
-            lines = deque(handle, maxlen=max(limit * 20, 200))
+            lines = deque(handle, maxlen=scan_size)
 
         events: list[dict[str, Any]] = []
         for line in reversed(lines):

@@ -23,6 +23,15 @@ mcp_data/
 *.bkp
 *_bkp
 README.md_bkp
+tmp/
+output/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Local tool environments
+.codex-pdf-venv/
 
 # Chat history
 test_client_output.json

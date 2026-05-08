@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+exclude = [
+    "venv",
+    "scripts/generate_app_summary_pdf.py",  # HTML string literals, not regular code
+]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "S"]
+ignore = [
+    # f-string LIMIT/OFFSET clauses use integer-coerced values — no injection risk
+    "S608",
+    # cli.py graceful-shutdown handler intentionally swallows errors on closed streams
+    "S110",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]        # assert is idiomatic in tests
+"test_client.py" = ["S607"] # partial path (python3) is fine in a dev-only test script

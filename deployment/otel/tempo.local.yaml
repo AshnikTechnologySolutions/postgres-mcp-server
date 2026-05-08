@@ -1,0 +1,42 @@
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+metrics_generator:
+  storage:
+    path: /tmp/tempo-generator/wal
+    remote_write:
+      - url: ${TEMPO_REMOTE_WRITE_URL}
+        send_exemplars: true
+  traces_storage:
+    path: /tmp/tempo-generator/traces
+  processor:
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
+    service_graphs: {}
+    span_metrics: {}
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
+        - local-blocks
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo-traces
+    wal:
+      path: /tmp/tempo-wal

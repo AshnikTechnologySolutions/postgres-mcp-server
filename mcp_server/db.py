@@ -3,6 +3,8 @@ import os
 
 import asyncpg
 
+from mcp_server.config import DB_CONNECT_TIMEOUT_SECONDS, DB_POOL_MAX_SIZE, DB_POOL_MIN_SIZE
+
 _POOLS: dict[str, asyncpg.Pool] = {}
 _POOL_LOCK = asyncio.Lock()
 
@@ -44,10 +46,26 @@ async def get_pool(role: str = "read") -> asyncpg.Pool:
         if role not in _POOLS:
             _POOLS[role] = await asyncpg.create_pool(
                 dsn=_require_database_url(role),
-                min_size=int(os.getenv("DB_POOL_MIN_SIZE", "2")),
-                max_size=int(os.getenv("DB_POOL_MAX_SIZE", "20")),
-                timeout=float(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "5")),
+                min_size=DB_POOL_MIN_SIZE,
+                max_size=DB_POOL_MAX_SIZE,
+                timeout=DB_CONNECT_TIMEOUT_SECONDS,
                 setup=_setup_connection,
             )
 
     return _POOLS[role]
+
+
+def describe_pools() -> dict[str, dict[str, int | bool | None]]:
+    descriptions: dict[str, dict[str, int | bool | None]] = {}
+    for role, pool in _POOLS.items():
+        size = pool.get_size()
+        idle = pool.get_idle_size()
+        descriptions[role] = {
+            "initialized": True,
+            "min_size": pool.get_min_size(),
+            "max_size": pool.get_max_size(),
+            "holder_count": size,
+            "idle": idle,
+            "in_use": size - idle,
+        }
+    return descriptions

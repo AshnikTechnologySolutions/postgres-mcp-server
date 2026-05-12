@@ -1,5 +1,14 @@
 asyncpg>=0.29,<0.31
 fastapi>=0.115,<1
+# Pinned to 2.x: FastMCP 3.x has breaking API changes not yet validated.
+# Dependabot alerts CVE-2026-32871, CVE-2026-27124, CVE-2025-64340 are fixed in 3.2.0
+# but do not affect this project — they target OpenAPIProvider, OAuthProxy, and the
+# `fastmcp install` CLI respectively, none of which are used here.
+# Lift the <3 cap after verifying @mcp.tool() and mcp.run() compatibility with 3.x.
 fastmcp>=2,<3
+opentelemetry-api>=1.24,<2
+opentelemetry-exporter-otlp-proto-http>=1.24,<2
+opentelemetry-instrumentation-fastapi>=0.45b0,<1
+opentelemetry-sdk>=1.24,<2
 python-dotenv>=1,<2
 uvicorn>=0.30,<1

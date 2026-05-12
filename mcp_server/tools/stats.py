@@ -1,16 +1,9 @@
-from mcp_server.sql import QueryValidationError, detect_pg_stat_statements_columns, fetch_rows
-
-
-def _coerce_limit(limit: int, *, default: int, maximum: int = 200) -> int:
-    value = int(limit if limit is not None else default)
-    if value < 1 or value > maximum:
-        raise QueryValidationError(f"limit must be between 1 and {maximum}")
-    return value
+from mcp_server.sql import QueryValidationError, coerce_limit, detect_pg_stat_statements_columns, fetch_rows
 
 
 async def table_stats(limit: int = 50):
     try:
-        safe_limit = _coerce_limit(limit, default=50)
+        safe_limit = coerce_limit(limit, default=50)
         rows = await fetch_rows(
             f"""
             SELECT
@@ -36,7 +29,7 @@ async def table_stats(limit: int = 50):
 
 async def slow_queries(limit: int = 10):
     try:
-        safe_limit = _coerce_limit(limit, default=10, maximum=100)
+        safe_limit = coerce_limit(limit, default=10, maximum=100)
         total_col, mean_col = await detect_pg_stat_statements_columns()
         rows = await fetch_rows(
             f"""

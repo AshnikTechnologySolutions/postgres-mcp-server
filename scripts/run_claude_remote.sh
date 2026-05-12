@@ -20,4 +20,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
+export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-postgres-mcp-stdio}"
+export OTEL_ENVIRONMENT="${OTEL_ENVIRONMENT:-remote}"
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://127.0.0.1:4318/v1/traces}"
+
 exec "$PYTHON_BIN" cli.py
